@@ -1,177 +1,602 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>J2L FLOW 실시간 재고 관리</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-            min-height: 100vh; padding: 20px;
-        }
-        .container {
-            background: white; border-radius: 20px; box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            padding: 30px; max-width: 950px; margin: 0 auto;
-        }
-        h1 { color: #1e3c72; text-align: center; margin-bottom: 20px; font-weight: 800; }
-        
-        /* 상단 검색 및 필터 */
-        .search-area { background: #f8f9fa; padding: 20px; border-radius: 15px; margin-bottom: 25px; }
-        .filter-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px; }
-        .filter-group { display: flex; flex-direction: column; gap: 5px; }
-        label { font-size: 13px; color: #777; font-weight: bold; }
-        .search-box { width: 100%; padding: 15px; font-size: 16px; border: 2px solid #1e3c72; border-radius: 12px; outline: none; }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>자재 위치 조회 시스템</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg2: #161b22;
+    --bg3: #21262d;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text2: #8b949e;
+    --accent: #58a6ff;
+    --accent2: #1f6feb;
+    --green: #3fb950;
+    --yellow: #d29922;
+    --red: #f85149;
+    --mono: 'Space Mono', monospace;
+    --sans: 'Noto Sans KR', sans-serif;
+  }
 
-        /* 테이블 스타일 */
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; font-size: 14px; }
-        th { background: #f4f7ff; color: #1e3c72; }
-        .loc-badge { background: #e3f2fd; color: #1976d2; padding: 4px 8px; border-radius: 4px; font-weight: bold; }
-        
-        .status-bar { text-align: right; margin-bottom: 10px; font-size: 12px; color: #666; }
-        .loading { text-align: center; padding: 50px; font-size: 18px; color: #1e3c72; font-weight: bold; }
-        .error-box { background: #fff5f5; color: #c53030; padding: 20px; border-radius: 10px; border: 1px solid #feb2b2; margin-top: 20px; display: none; }
-    </style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+  }
+
+  /* ── Header ── */
+  header {
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    padding: 18px 28px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .logo-box {
+    width: 36px; height: 36px;
+    background: var(--accent2);
+    border-radius: 8px;
+    display: grid; place-items: center;
+    font-family: var(--mono);
+    font-size: 16px; font-weight: 700;
+    color: #fff; flex-shrink: 0;
+  }
+  header h1 {
+    font-size: 16px; font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+  header span {
+    font-size: 12px; color: var(--text2);
+    font-family: var(--mono);
+  }
+  .header-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+  .sync-btn {
+    display: flex; align-items: center; gap: 6px;
+    background: var(--bg3); border: 1px solid var(--border);
+    color: var(--text2); padding: 6px 12px; border-radius: 6px;
+    font-size: 12px; cursor: pointer; transition: all .2s;
+    font-family: var(--sans);
+  }
+  .sync-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .sync-btn svg { width: 14px; height: 14px; }
+
+  /* ── Google Sheets 설정 패널 ── */
+  .sheet-panel {
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 28px;
+    display: none;
+    gap: 10px;
+    align-items: center;
+    animation: slideDown .2s ease;
+  }
+  .sheet-panel.open { display: flex; }
+  @keyframes slideDown { from { opacity:0; transform: translateY(-6px); } to { opacity:1; transform: translateY(0); } }
+  .sheet-panel label { font-size: 12px; color: var(--text2); white-space: nowrap; }
+  .sheet-panel input {
+    flex: 1; background: var(--bg3); border: 1px solid var(--border);
+    color: var(--text); padding: 8px 12px; border-radius: 6px;
+    font-size: 12px; font-family: var(--mono); outline: none;
+    transition: border-color .2s;
+  }
+  .sheet-panel input:focus { border-color: var(--accent); }
+  .sheet-panel input::placeholder { color: var(--text2); }
+  .load-btn {
+    background: var(--accent2); color: #fff;
+    border: none; padding: 8px 16px; border-radius: 6px;
+    font-size: 12px; font-weight: 500; cursor: pointer;
+    transition: background .2s; white-space: nowrap; font-family: var(--sans);
+  }
+  .load-btn:hover { background: var(--accent); }
+  .sheet-hint { font-size: 11px; color: var(--text2); margin-top: 4px; }
+
+  /* ── Main ── */
+  main { max-width: 1100px; margin: 0 auto; padding: 24px 28px; }
+
+  /* ── Stats bar ── */
+  .stats-bar {
+    display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;
+  }
+  .stat-chip {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 8px 14px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .stat-chip .stat-num {
+    font-family: var(--mono); font-size: 18px; font-weight: 700;
+    color: var(--accent);
+  }
+  .stat-chip .stat-label { font-size: 11px; color: var(--text2); }
+
+  /* ── Controls ── */
+  .controls {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+    margin-bottom: 20px;
+    display: flex; flex-direction: column; gap: 14px;
+  }
+
+  .search-row {
+    display: flex; gap: 8px; align-items: center;
+  }
+  .search-wrap {
+    flex: 1; position: relative;
+  }
+  .search-wrap svg {
+    position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+    width: 16px; height: 16px; color: var(--text2); pointer-events: none;
+  }
+  .search-input {
+    width: 100%; background: var(--bg3); border: 1px solid var(--border);
+    color: var(--text); padding: 10px 12px 10px 38px;
+    border-radius: 8px; font-size: 14px; font-family: var(--sans);
+    outline: none; transition: border-color .2s;
+  }
+  .search-input:focus { border-color: var(--accent); }
+  .search-input::placeholder { color: var(--text2); }
+  .clear-btn {
+    position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+    background: none; border: none; color: var(--text2); cursor: pointer;
+    padding: 4px; border-radius: 4px; display: none; line-height: 0;
+  }
+  .clear-btn:hover { color: var(--text); }
+
+  .filter-row {
+    display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start;
+  }
+  .filter-group { display: flex; flex-direction: column; gap: 7px; }
+  .filter-group label { font-size: 11px; color: var(--text2); font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase; }
+  .chip-group { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip {
+    background: var(--bg3); border: 1px solid var(--border);
+    color: var(--text2); padding: 4px 12px; border-radius: 20px;
+    font-size: 12px; cursor: pointer; transition: all .15s;
+    font-family: var(--mono); font-weight: 400; white-space: nowrap;
+    user-select: none;
+  }
+  .chip:hover { border-color: var(--accent); color: var(--accent); }
+  .chip.active { background: var(--accent2); border-color: var(--accent); color: #fff; }
+  .chip.qty-incl.active { background: #1a3a2a; border-color: var(--green); color: var(--green); }
+  .chip.qty-excl.active { background: #2a1a1a; border-color: #f85149; color: #f85149; }
+
+  /* ── Result count ── */
+  .result-meta {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .result-count { font-size: 13px; color: var(--text2); }
+  .result-count strong { color: var(--text); font-family: var(--mono); }
+
+  /* ── Table ── */
+  .table-wrap {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--bg2);
+  }
+  table { width: 100%; border-collapse: collapse; }
+  thead tr {
+    background: var(--bg3);
+    border-bottom: 1px solid var(--border);
+  }
+  th {
+    padding: 10px 16px; text-align: left;
+    font-size: 11px; font-weight: 700;
+    color: var(--text2); letter-spacing: 0.8px;
+    text-transform: uppercase; white-space: nowrap;
+    font-family: var(--sans);
+  }
+  td {
+    padding: 11px 16px; font-size: 13px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr { transition: background .1s; }
+  tbody tr:hover { background: rgba(88,166,255,0.04); }
+
+  .td-code { font-family: var(--mono); font-size: 12px; color: var(--text2); }
+  .td-name { font-weight: 500; }
+  .td-loc {
+    font-family: var(--mono); font-size: 13px;
+    color: var(--accent);
+    background: rgba(31,111,235,0.1);
+    border: 1px solid rgba(88,166,255,0.2);
+    display: inline-block; padding: 2px 8px; border-radius: 4px;
+    letter-spacing: 1px;
+  }
+  .td-model {
+    font-family: var(--mono); font-size: 11px;
+    padding: 2px 8px; border-radius: 4px;
+    display: inline-block;
+    background: var(--bg3); color: var(--text2);
+    border: 1px solid var(--border);
+  }
+  .td-qty {
+    font-family: var(--mono); font-size: 14px; font-weight: 700;
+    text-align: right;
+  }
+  .qty-zero { color: var(--red); }
+  .qty-low { color: var(--yellow); }
+  .qty-ok { color: var(--green); }
+
+  mark {
+    background: rgba(210,153,34,0.3);
+    color: var(--yellow);
+    border-radius: 2px; padding: 0 1px;
+  }
+
+  /* ── Empty ── */
+  .empty-state {
+    padding: 60px 20px; text-align: center; color: var(--text2);
+  }
+  .empty-state svg { width: 40px; height: 40px; margin-bottom: 12px; opacity: .4; }
+  .empty-state p { font-size: 14px; }
+
+  /* ── Status dot ── */
+  .status-dot {
+    width: 7px; height: 7px; border-radius: 50%; display: inline-block;
+    background: var(--green); animation: pulse 2s infinite;
+    margin-right: 6px;
+  }
+  @keyframes pulse {
+    0%,100% { opacity:1; } 50% { opacity:.4; }
+  }
+  .status-offline { background: var(--text2); animation: none; }
+
+  /* ── Toast ── */
+  .toast {
+    position: fixed; bottom: 24px; right: 24px;
+    background: var(--bg3); border: 1px solid var(--border);
+    color: var(--text); padding: 12px 18px; border-radius: 8px;
+    font-size: 13px; z-index: 100;
+    transform: translateY(20px); opacity: 0;
+    transition: all .3s; pointer-events: none;
+    max-width: 320px;
+  }
+  .toast.show { transform: translateY(0); opacity: 1; }
+  .toast.ok { border-color: var(--green); }
+  .toast.err { border-color: var(--red); }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg2); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
 </head>
 <body>
 
-<div class="container">
-    <div class="status-bar">
-        <span id="lastUpdate">연결 시도 중...</span>
-        <button onclick="fetchData()" style="cursor:pointer; margin-left:10px;">🔄 새로고침</button>
-    </div>
-    <h1>J2L FLOW 재고 현황</h1>
+<!-- Header -->
+<header>
+  <div class="logo-box">WH</div>
+  <div>
+    <h1>자재 위치 조회 시스템</h1>
+    <span id="statusText"><span class="status-dot status-offline" id="statusDot"></span>로컬 데이터</span>
+  </div>
+  <div class="header-right">
+    <button class="sync-btn" onclick="toggleSheetPanel()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M3 10h11M3 14h7M3 18h7M3 6h18M14 18l2 2 4-4"/>
+      </svg>
+      Google Sheets 연동
+    </button>
+  </div>
+</header>
 
-    <div class="search-area">
-        <input type="text" id="searchInput" class="search-box" placeholder="제품코드 또는 제품명 검색..." oninput="applyFilters()">
-        <div class="filter-grid">
-            <div class="filter-group">
-                <label>대표모델명</label>
-                <select id="modelFilter" onchange="applyFilters()"><option value="all">전체 모델</option></select>
-            </div>
-            <div class="filter-group">
-                <label>최소 수량 기준</label>
-                <input type="number" id="stockFilter" placeholder="0" oninput="applyFilters()">
-            </div>
-        </div>
-    </div>
-
-    <div id="loading" class="loading">데이터를 불러오는 중입니다...</div>
-    <div id="errorBox" class="error-box"></div>
-
-    <div style="overflow-x:auto;">
-        <table id="inventoryTable" style="display:none;">
-            <thead>
-                <tr><th>코드</th><th>품명</th><th>LOCATION</th><th>대표모델</th><th>수량</th></tr>
-            </thead>
-            <tbody id="inventoryBody"></tbody>
-        </table>
-    </div>
+<!-- Google Sheets 패널 -->
+<div class="sheet-panel" id="sheetPanel">
+  <label>시트 ID</label>
+  <input type="text" id="sheetId" placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms" />
+  <button class="load-btn" onclick="loadFromSheets()">불러오기</button>
+  <span id="sheetStatus" style="font-size:12px;color:var(--text2);white-space:nowrap;"></span>
+</div>
+<div id="sheetHint" style="display:none;padding:6px 28px 0;font-size:11px;color:var(--text2);">
+  💡 Google Sheets → 파일 → 공유 → 링크가 있는 모든 사용자 (뷰어) 로 설정 후 URL의 <code style="font-family:var(--mono);color:var(--accent)">/d/</code> 뒤 ID를 붙여넣으세요.
 </div>
 
+<main>
+  <!-- Stats -->
+  <div class="stats-bar" id="statsBar"></div>
+
+  <!-- Controls -->
+  <div class="controls">
+    <div class="search-row">
+      <div class="search-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+        </svg>
+        <input type="text" class="search-input" id="searchInput"
+               placeholder="제품코드 또는 제품명으로 검색…" oninput="onSearch(this.value)" />
+        <button class="clear-btn" id="clearBtn" onclick="clearSearch()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M18 6 6 18M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="filter-row">
+      <div class="filter-group">
+        <label>대표모델명</label>
+        <div class="chip-group" id="modelChips"></div>
+      </div>
+      <div class="filter-group">
+        <label>수량</label>
+        <div class="chip-group">
+          <div class="chip qty-incl active" id="qtyInclChip" onclick="toggleQty('incl')">0개 포함</div>
+          <div class="chip qty-excl" id="qtyExclChip" onclick="toggleQty('excl')">0개 제외</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Result meta -->
+  <div class="result-meta">
+    <div class="result-count" id="resultCount"></div>
+  </div>
+
+  <!-- Table -->
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>제품코드</th>
+          <th>제품명</th>
+          <th>LOCATION</th>
+          <th>대표모델명</th>
+          <th style="text-align:right">수량</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+    <div class="empty-state" id="emptyState" style="display:none">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+      </svg>
+      <p>검색 결과가 없습니다</p>
+    </div>
+  </div>
+</main>
+
+<div class="toast" id="toast"></div>
+
 <script>
-    // ⚠️ 여기에 본인의 구글 시트 '웹에 게시' CSV 주소를 정확히 입력하세요.
-    const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRkR0kD9Ftio5eDT3fbnhyXoyCXCNQYm0T1M1plvc_5Z4WtoZBJSwUIecRA2Bc5RaViZYT1erWQnl8x/pub?output=csv'; // 예시용 주소입니다. 본인 것으로 교체하세요.
+/* ── 기본 데이터 (Excel 원본) ── */
+const DEFAULT_DATA = [{"code":"YKD0210001","name":"CHARGING DC SENSOR (W)","location":"001a01","model":"R9WH","qty":7},{"code":"YKD0210002","name":"ANTI-DROPPING SENSOR","location":"001a02","model":"R9BK","qty":47},{"code":"YKD0210003","name":"FAN MOTOR MODULE","location":"001a03","model":"R9BK","qty":14},{"code":"YKD0210004","name":"LEFT SIDE WHEEL MODULE","location":"001a04","model":"R9BK","qty":72},{"code":"YKD0210005","name":"RIGHT SIDE WHEEL MODULE","location":"001a05","model":"R9BK","qty":92},{"code":"YKD0210006","name":"ROLLING BRUSH MOTOR MODULE","location":"001a06","model":"R9BK","qty":5},{"code":"YKD0210007","name":"INFRARED RECHARGE SENSOR","location":"001a07","model":"R9BK","qty":41},{"code":"YKD0210008","name":"TOF SENSOR MODULE","location":"001a08","model":"R9BK","qty":29},{"code":"YKD0210009","name":"VOICE MODULE","location":"001a09","model":"R9BK","qty":27},{"code":"YKD0210010","name":"MAIN PCBA","location":"001a10","model":"R9BK","qty":4},{"code":"YKD0210011","name":"LIDAR","location":"001a11","model":"R9BK","qty":23},{"code":"YKD0210012","name":"LEFT AND RIGHT SIDE BRUSH MODULE","location":"001a12","model":"R9BK","qty":126},{"code":"YKD0210013","name":"LITHIUM BATTERY","location":"001a13","model":"R9BK","qty":185},{"code":"YKD0210014","name":"UNIVERSAL WHEEL MODULE","location":"001a14","model":"R9BK","qty":22},{"code":"YKD0210015","name":"COLLISION SENSOR L","location":"001a15","model":"R9BK","qty":20},{"code":"YKD0210016","name":"FRONT COLLISION (B)","location":"001a16","model":"R9BK","qty":18},{"code":"YKD0210017","name":"FRONT COLLISION GUIDE (W)","location":"001a17","model":"R9WH","qty":0},{"code":"YKD0210018","name":"FRONT COLLISION GUIDE (B)","location":"001a18","model":"R9BK","qty":0},{"code":"YKD0210019","name":"DUST BOX DETECTION ASSEMBLY","location":"001a19","model":"R9BK","qty":54},{"code":"YKD0210020","name":"TOP CASE GLASS PANEL (W)","location":"001a20","model":"R9WH","qty":19},{"code":"YKD0210021","name":"TOP CASE GLASS PANEL (B)","location":"001a21","model":"R9BK","qty":18},{"code":"YKD0210022","name":"WIFI ANTENNA","location":"001a22","model":"R9BK","qty":91},{"code":"YKD0210023","name":"LED BUTTON PCB","location":"001a23","model":"R9BK","qty":26},{"code":"YKD0210024","name":"TOP CASE (W)","location":"001a24","model":"R9WH","qty":26},{"code":"YKD0210025","name":"TOP CASE (B)","location":"001a25","model":"R9BK","qty":11},{"code":"YKD0210026","name":"BOTTOM CASE (W)","location":"001a26","model":"R9WH","qty":14},{"code":"YKD0210027","name":"BOTTOM CASE (B)","location":"001a27","model":"R9BK","qty":2},{"code":"YKD0210028","name":"LIDAR COVER (B)","location":"001a28","model":"R9BK","qty":0},{"code":"YKD0210029","name":"TANK SHRAPNEL ASSEMBLY","location":"001a29","model":"R9BK","qty":55},{"code":"YKD0210030","name":"RESET PCB","location":"001a30","model":"R9BK","qty":14},{"code":"YKD0210031","name":"CHARGING DC SENSOR (B)","location":"001a31","model":"R9BK","qty":190},{"code":"YKD0210032","name":"ELECTRIC WATER TANK","location":"001a32","model":"R9BK","qty":15},{"code":"YKD0210033","name":"FRONT COLLISION (W)","location":"001a33","model":"R9WH","qty":9},{"code":"YKD0210034","name":"DUSTBIN","location":"001a34","model":"R9BK","qty":12},{"code":"YKD0210035","name":"ROLLING BRUSH","location":"001a35","model":"R9BK","qty":21},{"code":"YKD0210036","name":"MOP SUPERFINE (2IN1)","location":"001a36","model":"R9BK","qty":81},{"code":"YKD0210037","name":"HEPA+SPONGE FILTER","location":"001a37","model":"R9BK","qty":17},{"code":"YKD0210038","name":"2IN1 TANK IN PUMP","location":"001a38","model":"R9BK","qty":97},{"code":"YKD0210039","name":"MOP SUPERFINE","location":"001a39","model":"R9BK","qty":92},{"code":"YKD0210040","name":"MOP FABRIC (2IN1)","location":"001a40","model":"R9BK","qty":29},{"code":"YKD0210041","name":"LIDAR COVER (W)","location":"001a41","model":"R9WH","qty":0},{"code":"YKD0210042","name":"LEFT SIDE BRUSH","location":"001a42","model":"R9BK","qty":9},{"code":"YKD0210043","name":"KEYPAD BUTTON (W)","location":"001a43","model":"R9WH","qty":0},{"code":"YKD0210044","name":"KEYPAD BUTTON (B)","location":"001a44","model":"R9BK","qty":0},{"code":"YKD0210045","name":"TOP CASE REAR GUIDE (B)","location":"001a45","model":"R9BK","qty":39},{"code":"YKD0210046","name":"ROLLING BRUSH COVER (B)","location":"001a46","model":"R9BK","qty":6},{"code":"YKD0210047","name":"LIDAR CONNECTOR","location":"001a47","model":"R9BK","qty":24},{"code":"YKD0210048","name":"RIGHT SIDE BRUSH","location":"001a48","model":"R9BK","qty":17},{"code":"YKD0210049","name":"BUMPER GUIDE (B)","location":"001a49","model":"R9BK","qty":24},{"code":"YKD0210050","name":"BUMPER GUIDE (W)","location":"001a50","model":"R9WH","qty":23},{"code":"YKD0210051","name":"SUCTION TUYERE FILTER","location":"001a51","model":"R9BK","qty":18},{"code":"YKD0210052","name":"WATER TANK (2IN1)","location":"001a52","model":"R9BK","qty":44},{"code":"YKD0210053","name":"BATTERY CONNECTOR","location":"001a53","model":"R9BK","qty":39},{"code":"YKD0210054","name":"MOTOR MODULE CONNECTOR","location":"001a54","model":"R9BK","qty":8},{"code":"YKD0210055","name":"COLLISION SENSOR R","location":"001a55","model":"R9BK","qty":14},{"code":"YKD0210056","name":"BUMPER CABLE","location":"001a56","model":"R9BK","qty":6},{"code":"YKD0210057","name":"ADAPTER","location":"001a57","model":"R9BK","qty":89},{"code":"YKD0210058","name":"CHARGING DOCK","location":"001a58","model":"R9BK","qty":10},{"code":"YKD0210059","name":"LED CABLE","location":"001a59","model":"R9BK","qty":43},{"code":"YKD0210060","name":"FAN AIR OUT FOAM","location":"001a60","model":"R9BK","qty":49},{"code":"YKD0210061","name":"LITHIUM BATTERY RE","location":"001a61","model":"R9BK","qty":58},{"code":"YKD0210062","name":"2IN1 FILTER","location":"001a62","model":"R9BK","qty":48},{"code":"YKD0210063","name":"GAUZE","location":"001a63","model":"R9BK","qty":0},{"code":"YKD0210064","name":"CLEANING TOOL","location":"001a64","model":"R9BK","qty":34},{"code":"YKD0210065","name":"BATTERY COVER","location":"001a65","model":"R9BK","qty":6},{"code":"YKD0210066","name":"DUSTBIN PRIMARY FILTER","location":"001a66","model":"R9BK","qty":98},{"code":"YKD0210067","name":"2IN1 PRIMARY FILTER","location":"001a67","model":"R9BK","qty":50},{"code":"YKD0210068","name":"2in1 in Dustbin","location":"001a68","model":"R9BK","qty":16},{"code":"YKD0270001","name":"R9BK","location":"001a69","model":"R9BK","qty":0},{"code":"YKD0270002","name":"R9WH","location":"001a70","model":"R9WH","qty":0},{"code":"YKD0290001","name":"R9BK","location":"001a71","model":"R9BK","qty":0},{"code":"YKD0290002","name":"R9WH","location":"001a72","model":"R9WH","qty":0}];
 
-    let inventoryData = [];
+/* ── State ── */
+let allData = [...DEFAULT_DATA];
+let query = '';
+let selectedModel = 'ALL';
+let qtyMode = 'incl'; // 'incl' | 'excl'
 
-    window.onload = fetchData;
+/* ── Init ── */
+function init() {
+  buildModelChips();
+  buildStats();
+  render();
+}
 
-    async function fetchData() {
-        const loading = document.getElementById('loading');
-        const errorBox = document.getElementById('errorBox');
-        const table = document.getElementById('inventoryTable');
+/* ── Model chips ── */
+function buildModelChips() {
+  const models = ['ALL', ...new Set(allData.map(d => d.model).filter(Boolean))].sort();
+  const el = document.getElementById('modelChips');
+  el.innerHTML = models.map(m =>
+    `<div class="chip${m === selectedModel ? ' active' : ''}" onclick="selectModel('${m}')">${m === 'ALL' ? '전체' : m}</div>`
+  ).join('');
+}
 
-        loading.style.display = 'block';
-        errorBox.style.display = 'none';
-        table.style.display = 'none';
+function selectModel(m) {
+  selectedModel = m;
+  buildModelChips();
+  render();
+}
 
-        try {
-            const response = await fetch(SHEET_CSV_URL);
-            if (!response.ok) throw new Error("구글 시트 응답이 원활하지 않습니다.");
-            
-            const csvText = await response.text();
-            
-            // CSV 파싱 로직 (쉼표 처리 강화)
-            const rows = parseCSV(csvText).slice(1); // 헤더 제외
+/* ── Qty toggle ── */
+function toggleQty(mode) {
+  qtyMode = mode;
+  document.getElementById('qtyInclChip').className = 'chip qty-incl' + (mode === 'incl' ? ' active' : '');
+  document.getElementById('qtyExclChip').className = 'chip qty-excl' + (mode === 'excl' ? ' active' : '');
+  render();
+}
 
-            inventoryData = rows.filter(row => row[0]).map(row => ({
-                code: String(row[0] || '').trim(),
-                name: String(row[1] || '').trim(),
-                loc: String(row[2] || '').trim(),
-                model: String(row[3] || '기타').trim(),
-                stock: Number(row[4] || 0)
-            }));
+/* ── Search ── */
+function onSearch(val) {
+  query = val.trim();
+  document.getElementById('clearBtn').style.display = query ? 'block' : 'none';
+  render();
+}
 
-            if (inventoryData.length === 0) throw new Error("시트에 데이터가 없습니다.");
+function clearSearch() {
+  document.getElementById('searchInput').value = '';
+  onSearch('');
+}
 
-            loading.style.display = 'none';
-            table.style.display = 'table';
-            document.getElementById('lastUpdate').textContent = "마지막 업데이트: " + new Date().toLocaleTimeString();
-            
-            initModelFilter();
-            applyFilters();
-        } catch (error) {
-            loading.style.display = 'none';
-            errorBox.style.display = 'block';
-            errorBox.innerHTML = `<strong>⚠️ 오류 발생:</strong> ${error.message}<br><br>
-            1. 구글 시트가 '웹에 게시' 되었는지 확인하세요.<br>
-            2. 주소 끝이 pub?output=csv 인지 확인하세요.`;
-        }
+/* ── Stats ── */
+function buildStats() {
+  const total = allData.length;
+  const stocked = allData.filter(d => d.qty > 0).length;
+  const zero = allData.filter(d => d.qty === 0).length;
+  const totalQty = allData.reduce((s, d) => s + (d.qty || 0), 0);
+
+  document.getElementById('statsBar').innerHTML = `
+    <div class="stat-chip"><span class="stat-num">${total}</span><span class="stat-label">전체 품목</span></div>
+    <div class="stat-chip"><span class="stat-num" style="color:var(--green)">${stocked}</span><span class="stat-label">재고 있음</span></div>
+    <div class="stat-chip"><span class="stat-num" style="color:var(--red)">${zero}</span><span class="stat-label">재고 없음</span></div>
+    <div class="stat-chip"><span class="stat-num">${totalQty.toLocaleString()}</span><span class="stat-label">총 수량</span></div>
+  `;
+}
+
+/* ── Filter & Render ── */
+function getFiltered() {
+  const q = query.toUpperCase();
+  return allData.filter(d => {
+    if (qtyMode === 'excl' && d.qty === 0) return false;
+    if (selectedModel !== 'ALL' && d.model !== selectedModel) return false;
+    if (q) {
+      const matchCode = d.code && d.code.toUpperCase().includes(q);
+      const matchName = d.name && d.name.toUpperCase().includes(q);
+      return matchCode || matchName;
     }
+    return true;
+  });
+}
 
-    // 복잡한 CSV 구조를 안전하게 나누는 함수
-    function parseCSV(text) {
-        const p = Array.from(text.matchAll(/(".*?"|[^",\r\n]+)(?=\s*,|\s*(\r?\n|$))|(?<=,|^)\s*(?=,|$)/g));
-        const rows = [];
-        let curr = [];
-        p.forEach(m => {
-            curr.push(m[0].replace(/^"|"$/g, '').trim());
-            if (m.index + m[0].length < text.length && text[m.index + m[0].length].match(/\r?\n/)) {
-                rows.push(curr);
-                curr = [];
-            }
-        });
-        if (curr.length > 0) rows.push(curr);
-        return rows;
+function highlight(text, q) {
+  if (!q || !text) return text || '';
+  const re = new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')})`, 'gi');
+  return String(text).replace(re, '<mark>$1</mark>');
+}
+
+function qtyClass(qty) {
+  if (qty === 0) return 'qty-zero';
+  if (qty <= 5) return 'qty-low';
+  return 'qty-ok';
+}
+
+function render() {
+  const rows = getFiltered();
+  const q = query.toUpperCase();
+  const tbody = document.getElementById('tableBody');
+  const empty = document.getElementById('emptyState');
+  const countEl = document.getElementById('resultCount');
+
+  countEl.innerHTML = `<strong>${rows.length}</strong> 건 표시 중 (전체 ${allData.length}건)`;
+
+  if (rows.length === 0) {
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  tbody.innerHTML = rows.map(d => `
+    <tr>
+      <td class="td-code">${highlight(d.code, q)}</td>
+      <td class="td-name">${highlight(d.name, q)}</td>
+      <td><span class="td-loc">${d.location || '-'}</span></td>
+      <td><span class="td-model">${d.model || '-'}</span></td>
+      <td class="td-qty ${qtyClass(d.qty)}">${d.qty}</td>
+    </tr>
+  `).join('');
+}
+
+/* ── Google Sheets ── */
+function toggleSheetPanel() {
+  const panel = document.getElementById('sheetPanel');
+  const hint = document.getElementById('sheetHint');
+  const open = panel.classList.toggle('open');
+  hint.style.display = open ? 'block' : 'none';
+}
+
+async function loadFromSheets() {
+  const id = document.getElementById('sheetId').value.trim();
+  const status = document.getElementById('sheetStatus');
+  if (!id) { showToast('시트 ID를 입력해주세요.', 'err'); return; }
+
+  status.textContent = '⏳ 불러오는 중…';
+  const url = `https://docs.google.com/spreadsheets/d/${id}/export?format=csv&gid=0`;
+
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const csv = await res.text();
+    const parsed = parseCSV(csv);
+    if (parsed.length === 0) throw new Error('데이터 없음');
+
+    allData = parsed;
+    selectedModel = 'ALL';
+    buildModelChips();
+    buildStats();
+    render();
+
+    status.textContent = `✅ ${parsed.length}건 로드됨`;
+    setOnline(true);
+    showToast(`✅ ${parsed.length}건을 성공적으로 불러왔습니다.`, 'ok');
+  } catch(e) {
+    status.textContent = '❌ 불러오기 실패';
+    showToast('불러오기 실패: 시트가 공개 공유되어 있는지 확인해주세요.', 'err');
+  }
+}
+
+function parseCSV(csv) {
+  const lines = csv.split('\n').filter(l => l.trim());
+  if (lines.length < 2) return [];
+  const headers = lines[0].split(',').map(h => h.replace(/"/g,'').trim().toLowerCase());
+  
+  // 컬럼 인덱스 자동 감지
+  const ci = (names) => {
+    for (const n of names) {
+      const idx = headers.findIndex(h => h.includes(n));
+      if (idx >= 0) return idx;
     }
+    return -1;
+  };
 
-    function initModelFilter() {
-        const select = document.getElementById('modelFilter');
-        const models = [...new Set(inventoryData.map(d => d.model))].sort();
-        select.innerHTML = '<option value="all">전체 모델</option>';
-        models.forEach(m => {
-            const opt = document.createElement('option');
-            opt.value = m; opt.textContent = m;
-            select.appendChild(opt);
-        });
-    }
+  const iCode = ci(['제품코드','코드','code']);
+  const iName = ci(['제품명','name']);
+  const iLoc  = ci(['location','loc','위치']);
+  const iModel = ci(['대표모델','model']);
+  const iQty  = ci(['수량','qty','quantity']);
 
-    function applyFilters() {
-        const search = document.getElementById('searchInput').value.toLowerCase();
-        const model = document.getElementById('modelFilter').value;
-        const stock = Number(document.getElementById('stockFilter').value) || 0;
+  return lines.slice(1).map(line => {
+    const cols = splitCSVLine(line);
+    const qty = parseInt(cols[iQty]) || 0;
+    return {
+      code: cols[iCode]?.replace(/"/g,'').trim() || '',
+      name: cols[iName]?.replace(/"/g,'').trim() || '',
+      location: cols[iLoc]?.replace(/"/g,'').trim() || '',
+      model: cols[iModel]?.replace(/"/g,'').trim() || '',
+      qty
+    };
+  }).filter(d => d.code || d.name);
+}
 
-        const filtered = inventoryData.filter(item => {
-            const mSearch = item.code.toLowerCase().includes(search) || item.name.toLowerCase().includes(search);
-            const mModel = (model === 'all' || item.model === model);
-            const mStock = item.stock >= stock;
-            return mSearch && mModel && mStock;
-        });
+function splitCSVLine(line) {
+  const cols = []; let cur = ''; let inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') { inQ = !inQ; }
+    else if (c === ',' && !inQ) { cols.push(cur); cur = ''; }
+    else { cur += c; }
+  }
+  cols.push(cur);
+  return cols;
+}
 
-        const body = document.getElementById('inventoryBody');
-        body.innerHTML = filtered.map(item => `
-            <tr>
-                <td style="font-weight:bold;">${item.code}</td>
-                <td>${item.name}</td>
-                <td><span class="loc-badge">${item.loc}</span></td>
-                <td>${item.model}</td>
-                <td style="color:${item.stock < 3 ? 'red' : 'black'}; font-weight:bold;">${item.stock}</td>
-            </tr>
-        `).join('');
-    }
+function setOnline(on) {
+  const dot = document.getElementById('statusDot');
+  const txt = document.getElementById('statusText');
+  if (on) {
+    dot.className = 'status-dot';
+    txt.innerHTML = '<span class="status-dot"></span>Google Sheets 연동됨';
+  } else {
+    dot.className = 'status-dot status-offline';
+    txt.innerHTML = '<span class="status-dot status-offline"></span>로컬 데이터';
+  }
+}
+
+/* ── Toast ── */
+function showToast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast${type ? ' '+type : ''} show`;
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => { t.classList.remove('show'); }, 3500);
+}
+
+/* ── Start ── */
+init();
 </script>
 </body>
 </html>

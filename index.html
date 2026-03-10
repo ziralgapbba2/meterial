@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>J2L FLOW 실시간 재고 관리</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh; padding: 20px;
+        }
+        .container {
+            background: white; border-radius: 20px; box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 30px; max-width: 950px; margin: 0 auto;
+        }
+        h1 { color: #1e3c72; text-align: center; margin-bottom: 20px; font-weight: 800; }
+        
+        /* 상단 검색 및 필터 */
+        .search-area { background: #f8f9fa; padding: 20px; border-radius: 15px; margin-bottom: 25px; }
+        .filter-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px; }
+        .filter-group { display: flex; flex-direction: column; gap: 5px; }
+        label { font-size: 13px; color: #777; font-weight: bold; }
+        .search-box { width: 100%; padding: 15px; font-size: 16px; border: 2px solid #1e3c72; border-radius: 12px; outline: none; }
+
+        /* 테이블 스타일 */
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; font-size: 14px; }
+        th { background: #f4f7ff; color: #1e3c72; }
+        .loc-badge { background: #e3f2fd; color: #1976d2; padding: 4px 8px; border-radius: 4px; font-weight: bold; }
+        
+        .status-bar { text-align: right; margin-bottom: 10px; font-size: 12px; color: #666; }
+        .loading { text-align: center; padding: 50px; font-size: 18px; color: #1e3c72; font-weight: bold; }
+        .error-box { background: #fff5f5; color: #c53030; padding: 20px; border-radius: 10px; border: 1px solid #feb2b2; margin-top: 20px; display: none; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="status-bar">
+        <span id="lastUpdate">연결 시도 중...</span>
+        <button onclick="fetchData()" style="cursor:pointer; margin-left:10px;">🔄 새로고침</button>
+    </div>
+    <h1>J2L FLOW 재고 현황</h1>
+
+    <div class="search-area">
+        <input type="text" id="searchInput" class="search-box" placeholder="제품코드 또는 제품명 검색..." oninput="applyFilters()">
+        <div class="filter-grid">
+            <div class="filter-group">
+                <label>대표모델명</label>
+                <select id="modelFilter" onchange="applyFilters()"><option value="all">전체 모델</option></select>
+            </div>
+            <div class="filter-group">
+                <label>최소 수량 기준</label>
+                <input type="number" id="stockFilter" placeholder="0" oninput="applyFilters()">
+            </div>
+        </div>
+    </div>
+
+    <div id="loading" class="loading">데이터를 불러오는 중입니다...</div>
+    <div id="errorBox" class="error-box"></div>
+
+    <div style="overflow-x:auto;">
+        <table id="inventoryTable" style="display:none;">
+            <thead>
+                <tr><th>코드</th><th>품명</th><th>LOCATION</th><th>대표모델</th><th>수량</th></tr>
+            </thead>
+            <tbody id="inventoryBody"></tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    // ⚠️ 여기에 본인의 구글 시트 '웹에 게시' CSV 주소를 정확히 입력하세요.
+    const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRkR0kD9Ftio5eDT3fbnhyXoyCXCNQYm0T1M1plvc_5Z4WtoZBJSwUIecRA2Bc5RaViZYT1erWQnl8x/pub?output=csv'
+
+    let inventoryData = [];
+
+    window.onload = fetchData;
+
+    async function fetchData() {
+        const loading = document.getElementById('loading');
+        const errorBox = document.getElementById('errorBox');
+        const table = document.getElementById('inventoryTable');
+
+        loading.style.display = 'block';
+        errorBox.style.display = 'none';
+        table.style.display = 'none';
+
+        try {
+            const response = await fetch(SHEET_CSV_URL);
+            if (!response.ok) throw new Error("구글 시트 응답이 원활하지 않습니다.");
+            
+            const csvText = await response.text();
+            
+            // CSV 파싱 로직 (쉼표 처리 강화)
+            const rows = parseCSV(csvText).slice(1); // 헤더 제외
+
+            inventoryData = rows.filter(row => row[0]).map(row => ({
+                code: String(row[0] || '').trim(),
+                name: String(row[1] || '').trim(),
+                loc: String(row[2] || '').trim(),
+                model: String(row[3] || '기타').trim(),
+                stock: Number(row[4] || 0)
+            }));
+
+            if (inventoryData.length === 0) throw new Error("시트에 데이터가 없습니다.");
+
+            loading.style.display = 'none';
+            table.style.display = 'table';
+            document.getElementById('lastUpdate').textContent = "마지막 업데이트: " + new Date().toLocaleTimeString();
+            
+            initModelFilter();
+            applyFilters();
+        } catch (error) {
+            loading.style.display = 'none';
+            errorBox.style.display = 'block';
+            errorBox.innerHTML = `<strong>⚠️ 오류 발생:</strong> ${error.message}<br><br>
+            1. 구글 시트가 '웹에 게시' 되었는지 확인하세요.<br>
+            2. 주소 끝이 pub?output=csv 인지 확인하세요.`;
+        }
+    }
+
+    // 복잡한 CSV 구조를 안전하게 나누는 함수
+    function parseCSV(text) {
+        const p = Array.from(text.matchAll(/(".*?"|[^",\r\n]+)(?=\s*,|\s*(\r?\n|$))|(?<=,|^)\s*(?=,|$)/g));
+        const rows = [];
+        let curr = [];
+        p.forEach(m => {
+            curr.push(m[0].replace(/^"|"$/g, '').trim());
+            if (m.index + m[0].length < text.length && text[m.index + m[0].length].match(/\r?\n/)) {
+                rows.push(curr);
+                curr = [];
+            }
+        });
+        if (curr.length > 0) rows.push(curr);
+        return rows;
+    }
+
+    function initModelFilter() {
+        const select = document.getElementById('modelFilter');
+        const models = [...new Set(inventoryData.map(d => d.model))].sort();
+        select.innerHTML = '<option value="all">전체 모델</option>';
+        models.forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m; opt.textContent = m;
+            select.appendChild(opt);
+        });
+    }
+
+    function applyFilters() {
+        const search = document.getElementById('searchInput').value.toLowerCase();
+        const model = document.getElementById('modelFilter').value;
+        const stock = Number(document.getElementById('stockFilter').value) || 0;
+
+        const filtered = inventoryData.filter(item => {
+            const mSearch = item.code.toLowerCase().includes(search) || item.name.toLowerCase().includes(search);
+            const mModel = (model === 'all' || item.model === model);
+            const mStock = item.stock >= stock;
+            return mSearch && mModel && mStock;
+        });
+
+        const body = document.getElementById('inventoryBody');
+        body.innerHTML = filtered.map(item => `
+            <tr>
+                <td style="font-weight:bold;">${item.code}</td>
+                <td>${item.name}</td>
+                <td><span class="loc-badge">${item.loc}</span></td>
+                <td>${item.model}</td>
+                <td style="color:${item.stock < 3 ? 'red' : 'black'}; font-weight:bold;">${item.stock}</td>
+            </tr>
+        `).join('');
+    }
+</script>
+</body>
+</html>
